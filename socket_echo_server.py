@@ -1,5 +1,7 @@
 import socket
 import sys
+import subprocess
+import ast
 
 # Create a TCP/IP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -21,16 +23,21 @@ while True:
         print >>sys.stderr, 'connection from', client_address
 
         # Receive the data in small chunks and retransmit it
+        msg = ""
         while True:
-            data = connection.recv(16)
+            data = connection.recv(256)
             print >>sys.stderr, 'received "%s"' % data
-            if data:
-                print >>sys.stderr, 'sending data back to the client'
-                connection.sendall(data)
-            else:
-                print >>sys.stderr, 'no more data from', client_address
+            msg += data
+            if "CLIENT_DONE_RECEIVING" in data:
                 break
-            
+            if "MY_END_OF_MESSAGE_STRING" in  data:
+                print >>sys.stderr, 'no more data from', client_address
+                print >>sys.stderr, 'sending data back to the client: ' + msg
+                msg = msg.replace("MY_END_OF_MESSAGE_STRING", "")
+                p = subprocess.Popen(ast.literal_eval(msg), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                (out, _) = p.communicate()
+                print ("sendall" + out + "ENDIT")
+                connection.sendall(out + "MY_END_OF_MESSAGE_STRING")
     finally:
         # Clean up the connection
         connection.close()
